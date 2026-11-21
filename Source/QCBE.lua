@@ -419,9 +419,9 @@ function Parser:ParseType()
   return Type
 end
 
-function Parser:ParseFunction()
-  local Function = {
-    Kind = "Function",
+function Parser:ParseFunctionDeclaration()
+  local FunctionDeclaration = {
+    Kind = "FunctionDeclaration",
     Name = "",
     Attributes = {},
     Arguments = {},
@@ -432,7 +432,7 @@ function Parser:ParseFunction()
   Parser:Advance(1)
 
   Parser:Expect(0, "Ident")
-  Function.Name = Parser.Token.Value
+  FunctionDeclaration.Name = Parser.Token.Value
   Parser:Advance(1)
 
   local ArgMode = false
@@ -448,7 +448,7 @@ function Parser:ParseFunction()
     elseif ArgMode then
       table.insert(ArgumentTypes, Attribute)
     else
-      table.insert(Function.Attributes, Attribute)
+      table.insert(FunctionDeclaration.Attributes, Attribute)
     end
 
     Parser:Advance(1)
@@ -458,7 +458,7 @@ function Parser:ParseFunction()
   Parser:Advance(1)
 
   Parser:Expect(0, "Ident")
-  Function.ReturnType = Parser.Token.Value
+  FunctionDeclaration.ReturnType = Parser.Token.Value
   Parser:Advance(1)
 
   Parser:Expect(0, "Punct", "(")
@@ -470,7 +470,7 @@ function Parser:ParseFunction()
 
     local ArgumentType = ArgumentTypes[Idx]
     local ArgumentName = Parser.Token.Value
-    Function.Arguments[Idx] = { Name = ArgumentName, Type = ArgumentType }
+    FunctionDeclaration.Arguments[Idx] = { Name = ArgumentName, Type = ArgumentType }
 
     Parser:Advance(1)
     Idx = Idx + 1
@@ -486,10 +486,10 @@ function Parser:ParseFunction()
   Parser:Advance(1)
 
   local Body = Parser:ParseBody()
-  Function.Body = Body
+  FunctionDeclaration.Body = Body
   Parser:Advance(1)
 
-  return Function
+  return FunctionDeclaration
 end
 
 function Parser:ParseOperation()
@@ -556,9 +556,9 @@ function Parser:ParseReturn()
   return Return
 end
 
-function Parser:ParseDeclaration()
-  local Declaration = {
-    Kind = "Declaration",
+function Parser:ParseVariableDeclaration()
+  local VariableDeclaration = {
+    Kind = "VariableDeclaration",
     Name = "",
     Type = {},
     Value = "",
@@ -567,26 +567,26 @@ function Parser:ParseDeclaration()
   Parser:Advance(1)
 
   Parser:Expect(0, "Ident")
-  Declaration.Name = Parser.Token.Value
+  VariableDeclaration.Name = Parser.Token.Value
   Parser:Advance(1)
 
   Parser:Expect(0, "Operator", "=")
   Parser:Advance(1)
 
   local Type = Parser:ParseType()
-  Declaration.Type = Type.Type
-  Declaration.Value = Type.Value
+  VariableDeclaration.Type = Type.Type
+  VariableDeclaration.Value = Type.Value
 
-  return Declaration
+  return VariableDeclaration
 end
 
 function Parser:ParseStatement()
   if Parser:CheckToken(0, "Keyword", "function") then
-    return Parser:ParseFunction()
+    return Parser:ParseFunctionDeclaration()
+  elseif Parser:CheckToken(0, "Keyword", "local") then
+    return Parser:ParseVariableDeclaration()
   elseif Parser:CheckToken(0, "Keyword", "return") then
     return Parser:ParseReturn()
-  elseif Parser:CheckToken(0, "Keyword", "local") then
-    return Parser:ParseDeclaration()
   elseif Parser:CheckToken(0, "Ident") then
     return Parser:ParseOperation()
   end
@@ -689,7 +689,7 @@ function BytecodeGenerator:WriteTypedValue(Type, Value)
   end
 end
 
-function BytecodeGenerator:EmitFunction(Ast)
+function BytecodeGenerator:EmitFunctionDeclaration(Ast)
   local Export = TableHasString(Ast.Attributes, "export")
 
   local Symbol = {
@@ -736,8 +736,8 @@ function BytecodeGenerator:EmitReturn(Ast)
 end
 
 function BytecodeGenerator:Emit(Ast)
-  if Ast.Kind == "Function" then
-    BytecodeGenerator:EmitFunction(Ast)
+  if Ast.Kind == "FunctionDeclaration" then
+    BytecodeGenerator:EmitFunctionDeclaration(Ast)
   elseif Ast.Kind == "Operation" then
     BytecodeGenerator:EmitOperation(Ast)
   elseif Ast.Kind == "Return" then
