@@ -332,9 +332,72 @@ function Parser:ParseFunction()
   return Function
 end
 
+function Parser:ParseOperation()
+  local Operation = {
+    Kind = "Operation",
+    Opcode = "",
+    Target = "",
+    Arguments = {},
+  }
+
+  Operation.Opcode = Parser.Token.Value
+
+  if Parser:CheckToken(1, "Punct", ".") then
+    Parser:Advance(2)
+
+    Parser:Expect(0, "Ident")
+    Operation.Target = Parser.Token.Value
+    Parser:Advance(1)
+  else
+    Operation.Target = Parser.Token.Value
+    Operation.Opcode = "Call"
+    Parser:Advance(1)
+  end
+
+  Parser:Expect(0, "Punct", "(")
+  Parser:Advance(1)
+
+  while not Parser:CheckToken(0, "Punct", ")") do
+    local Argument
+
+    if Parser:CheckToken(0, "Ident") then
+      Argument = Parser:ParseOperation()
+    elseif Parser:CheckToken(0, "String") then
+      Argument = {
+        Kind = "String",
+        Value = Parser.Token.Value,
+      }
+      Parser:Advance(1)
+    elseif Parser:CheckToken(0, "Number") then
+      Argument = {
+        Kind = "Number",
+        Value = Parser.Token.Value,
+      }
+      Parser:Advance(1)
+    else
+      Logger:Error("Unexpected token in operation argument: %s", tostring(Parser.Token.Value))
+    end
+
+    table.insert(Operation.Arguments, Argument)
+
+    if Parser:CheckToken(0, "Punct", ",") then
+      Parser:Advance(1)
+    elseif not Parser:CheckToken(0, "Punct", ")") then
+      Logger:Error("Expected ',' or ')'")
+    end
+  end
+
+  Parser:Expect(0, "Punct", ")")
+  Parser:Advance(1)
+
+  return Operation
+end
+
 function Parser:ParseStatement()
   if Parser:CheckToken(0, "Keyword", "function") then
     return Parser:ParseFunction()
+  elseif Parser:CheckToken(0, "Ident") then
+    return Parser:ParseOperation()
   end
 end
 
