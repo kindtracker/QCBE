@@ -35,9 +35,18 @@ local BaseEscapes = {
 }
 
 local OpcodeTable = {
-  call = 0,
-  push = 1,
-  ret = 2,
+  call = 0, -- Implemented
+  push = 1, -- Implemented
+  load = 2, -- Not implemented
+  store = 3, -- Not implemented
+  add = 4, -- Not implemented
+  sub = 5, -- Not implemented
+  mul = 6, -- Not implemented
+  div = 7, -- Not implemented
+  mod = 8, -- Not implemented
+  cmp = 10, -- Not implemented
+  jmp = 11, -- Not implemented
+  jmpn = 13, -- Not implemented
 }
 
 local TypeTable = {
@@ -498,27 +507,27 @@ function Parser:Parse()
   end
 end
 
-function BytecodeGenerator.Write8(Value)
+function BytecodeGenerator:Write8(Value)
   State.Bytecode = State.Bytecode .. string.char(Value % 256)
   BytecodeGenerator.Pc = BytecodeGenerator.Pc + 1
 end
 
-function BytecodeGenerator.Write16(Value)
-  BytecodeGenerator.Write8(Value)
-  BytecodeGenerator.Write8(math.floor(Value / 256))
+function BytecodeGenerator:Write16(Value)
+  BytecodeGenerator:Write8(Value)
+  BytecodeGenerator:Write8(math.floor(Value / 256))
 end
 
-function BytecodeGenerator.Write32(Value)
-  BytecodeGenerator.Write16(Value)
-  BytecodeGenerator.Write16(math.floor(Value / 65536))
+function BytecodeGenerator:Write32(Value)
+  BytecodeGenerator:Write16(Value)
+  BytecodeGenerator:Write16(math.floor(Value / 65536))
 end
 
-function BytecodeGenerator.Write64(Value)
-  BytecodeGenerator.Write32(Value)
-  BytecodeGenerator.Write32(math.floor(Value / 4294967296))
+function BytecodeGenerator:Write64(Value)
+  BytecodeGenerator:Write32(Value)
+  BytecodeGenerator:Write32(math.floor(Value / 4294967296))
 end
 
-function BytecodeGenerator.WriteFloat(Value)
+function BytecodeGenerator:WriteFloat(Value)
   local Data = FFI.new("float[1]", Value)
   local Bytes = FFI.string(Data, 4)
 
@@ -526,7 +535,7 @@ function BytecodeGenerator.WriteFloat(Value)
   BytecodeGenerator.Pc = BytecodeGenerator.Pc + 4
 end
 
-function BytecodeGenerator.WriteDouble(Value)
+function BytecodeGenerator:WriteDouble(Value)
   local Data = FFI.new("double[1]", Value)
   local Bytes = FFI.string(Data, 8)
 
@@ -534,13 +543,13 @@ function BytecodeGenerator.WriteDouble(Value)
   BytecodeGenerator.Pc = BytecodeGenerator.Pc + 8
 end
 
-function BytecodeGenerator.WriteString(String)
-  BytecodeGenerator.Write32(#String)
+function BytecodeGenerator:WriteString(String)
+  BytecodeGenerator:Write32(#String)
   State.Bytecode = State.Bytecode .. String
   BytecodeGenerator.Pc = BytecodeGenerator.Pc + #String
 end
 
-function BytecodeGenerator.AddConstant(Value)
+function BytecodeGenerator:AddConstant(Value)
   local Index = BytecodeGenerator.ConstantLookup[Value]
   if Index ~= nil then
     return Index
@@ -553,32 +562,32 @@ function BytecodeGenerator.AddConstant(Value)
   return Index
 end
 
-function BytecodeGenerator.WriteTypedValue(Type, Value)
-  BytecodeGenerator.Write8(TypeTable[Type])
+function BytecodeGenerator:WriteTypedValue(Type, Value)
+  BytecodeGenerator:Write8(TypeTable[Type])
 
   if Type == "ptr" then
-    BytecodeGenerator.Write32(BytecodeGenerator.AddConstant(Value.Value))
+    BytecodeGenerator:Write32(BytecodeGenerator:AddConstant(Value.Value))
   elseif Type == "i8" or Type == "u8" then
-    BytecodeGenerator.Write8(Value.Value)
+    BytecodeGenerator:Write8(Value.Value)
   elseif Type == "i16" or Type == "u16" then
-    BytecodeGenerator.Write16(Value.Value)
+    BytecodeGenerator:Write16(Value.Value)
   elseif Type == "i32" or Type == "u32" then
-    BytecodeGenerator.Write32(Value.Value)
+    BytecodeGenerator:Write32(Value.Value)
   elseif Type == "i64" or Type == "u64" then
-    BytecodeGenerator.Write64(Value.Value)
+    BytecodeGenerator:Write64(Value.Value)
   elseif Type == "f32" then
-    BytecodeGenerator.WriteFloat(Value.Value)
+    BytecodeGenerator:WriteFloat(Value.Value)
   elseif Type == "f64" then
-    BytecodeGenerator.WriteDouble(Value.Value)
+    BytecodeGenerator:WriteDouble(Value.Value)
   end
 end
 
-function BytecodeGenerator.EmitFunction(Ast)
+function BytecodeGenerator:EmitFunction(Ast)
   local Export = TableHasString(Ast.Attributes, "Export")
 
   local Symbol = {
     Name = Ast.Name,
-    NameIndex = BytecodeGenerator.AddConstant(Ast.Name),
+    NameIndex = BytecodeGenerator:AddConstant(Ast.Name),
     Export = Export,
     Offset = BytecodeGenerator.Pc,
     Size = 0,
@@ -590,11 +599,11 @@ function BytecodeGenerator.EmitFunction(Ast)
   table.insert(BytecodeGenerator.Symbols, Symbol)
 
   for _, ChildAst in ipairs(Ast.Body) do
-    BytecodeGenerator.Emit(ChildAst)
+    BytecodeGenerator:Emit(ChildAst)
   end
 
   if #Ast.Body == 0 or Ast.Body[#Ast.Body].Kind ~= "Return" then
-    BytecodeGenerator.EmitReturn({
+    BytecodeGenerator:EmitReturn({
       Type = "void",
       Value = {},
     })
@@ -603,32 +612,32 @@ function BytecodeGenerator.EmitFunction(Ast)
   Symbol.Size = BytecodeGenerator.Pc - Symbol.Offset
 end
 
-function BytecodeGenerator.EmitOperation(Ast)
-  BytecodeGenerator.Write8(OpcodeTable[Ast.Opcode])
-  BytecodeGenerator.Write32(BytecodeGenerator.AddConstant(Ast.Target))
-  BytecodeGenerator.Write16(#Ast.Arguments)
+function BytecodeGenerator:EmitOperation(Ast)
+  BytecodeGenerator:Write8(OpcodeTable[Ast.Opcode])
+  BytecodeGenerator:Write32(BytecodeGenerator:AddConstant(Ast.Target))
+  BytecodeGenerator:Write16(#Ast.Arguments)
 
   for _, Argument in ipairs(Ast.Arguments) do
-    BytecodeGenerator.WriteTypedValue(Argument.Type, Argument.Value)
+    BytecodeGenerator:WriteTypedValue(Argument.Type, Argument.Value)
   end
 end
 
-function BytecodeGenerator.EmitReturn(Ast)
-  BytecodeGenerator.Write8(OpcodeTable.ret)
-  BytecodeGenerator.WriteTypedValue(Ast.Type, Ast.Value)
+function BytecodeGenerator:EmitReturn(Ast)
+  BytecodeGenerator:Write8(OpcodeTable.push)
+  BytecodeGenerator:WriteTypedValue(Ast.Type, Ast.Value)
 end
 
-function BytecodeGenerator.Emit(Ast)
+function BytecodeGenerator:Emit(Ast)
   if Ast.Kind == "Function" then
-    BytecodeGenerator.EmitFunction(Ast)
+    BytecodeGenerator:EmitFunction(Ast)
   elseif Ast.Kind == "Operation" then
-    BytecodeGenerator.EmitOperation(Ast)
+    BytecodeGenerator:EmitOperation(Ast)
   elseif Ast.Kind == "Return" then
-    BytecodeGenerator.EmitReturn(Ast)
+    BytecodeGenerator:EmitReturn(Ast)
   end
 end
 
-function BytecodeGenerator.EmitAst()
+function BytecodeGenerator:EmitAst()
   State.Bytecode = ""
   BytecodeGenerator.Pc = 0
 
@@ -638,44 +647,44 @@ function BytecodeGenerator.EmitAst()
   BytecodeGenerator.SymbolTable = {}
 
   for _, Ast in ipairs(State.Ast) do
-    BytecodeGenerator.Emit(Ast)
+    BytecodeGenerator:Emit(Ast)
   end
 end
 
-function BytecodeGenerator.BuildFile()
+function BytecodeGenerator:BuildFile()
   local Code = State.Bytecode
+
   State.Bytecode = ""
   BytecodeGenerator.Pc = 0
-
   BytecodeGenerator.WriteBytes = nil
 
-  BytecodeGenerator.WriteString("QCBE")
-  BytecodeGenerator.Write16(1)
-  BytecodeGenerator.Write16(0)
+  BytecodeGenerator:Write8(string.byte("Q"))
+  BytecodeGenerator:Write8(string.byte("C"))
+  BytecodeGenerator:Write8(string.byte("B"))
+  BytecodeGenerator:Write8(string.byte("E"))
 
-  BytecodeGenerator.Write32(#BytecodeGenerator.Constants)
-  BytecodeGenerator.Write32(#BytecodeGenerator.Symbols)
-  BytecodeGenerator.Write32(#Code)
+  BytecodeGenerator:Write32(#Code)
+  BytecodeGenerator:Write32(#BytecodeGenerator.Symbols)
+  BytecodeGenerator:Write32(#BytecodeGenerator.Constants)
 
-  for _, Constant in ipairs(BytecodeGenerator.Constants) do
-    BytecodeGenerator.WriteString(Constant)
-  end
+  State.Bytecode = State.Bytecode .. Code
 
   for _, Symbol in ipairs(BytecodeGenerator.Symbols) do
-    BytecodeGenerator.Write32(Symbol.NameIndex)
-    BytecodeGenerator.Write8(Symbol.Export and 1 or 0)
-    BytecodeGenerator.Write32(Symbol.Offset)
-    BytecodeGenerator.Write32(Symbol.Size)
-    BytecodeGenerator.Write16(#Symbol.Arguments)
-    BytecodeGenerator.Write8(TypeTable[Symbol.ReturnType])
+    BytecodeGenerator:Write32(Symbol.NameIndex)
+    BytecodeGenerator:Write8(Symbol.Export and 1 or 0)
+    BytecodeGenerator:Write32(Symbol.Offset)
+    BytecodeGenerator:Write32(Symbol.Size)
+    BytecodeGenerator:Write16(#Symbol.Arguments)
+    BytecodeGenerator:Write8(TypeTable[Symbol.ReturnType])
 
     for _, Argument in ipairs(Symbol.Arguments) do
-      BytecodeGenerator.Write32(BytecodeGenerator.AddConstant(Argument.Name))
-      BytecodeGenerator.Write8(TypeTable[Argument.Type])
+      BytecodeGenerator:Write8(TypeTable[Argument.Type])
     end
   end
 
-  State.Bytecode = State.Bytecode .. Code
+  for _, Constant in ipairs(BytecodeGenerator.Constants) do
+    BytecodeGenerator:WriteString(Constant)
+  end
 
   return State.Bytecode
 end
