@@ -11,26 +11,14 @@ local BaseOperators = "=<>~&|+-*/^%"
 local BaseWhiteSpace = "\n\t\r "
 
 local BaseKeywords = {
-  "and",
-  "break",
-  "continue",
-  "do",
-  "else",
-  "elseif",
-  "end",
-  "for",
   "function",
-  "goto",
-  "if",
-  "in",
-  "local",
-  "not",
-  "or",
-  "repeat",
   "return",
-  "then",
-  "until",
-  "while",
+  "end",
+  "global",
+  "local",
+  "true",
+  "false",
+  "null",
 }
 
 local BaseEscapes = {
@@ -154,15 +142,28 @@ function Tokenizer:Tokenize()
       local StartIndex = Tokenizer.Index
 
       while Tokenizer.Character ~= Quote do
-        print(Tokenizer.Character)
         Tokenizer:Advance(1)
       end
       local EndIndex = Tokenizer.Index - 1
       Tokenizer:Advance(1)
 
       local String = State.File.Content:sub(StartIndex, EndIndex)
-      print(String)
       Tokenizer:NewToken("String", String)
+    elseif StringHasLetter(BaseDigits, Tokenizer.Character) then
+      local StartIndex = Tokenizer.Index
+
+      while StringHasLetter(BaseDigits, Tokenizer.Character) do
+        Tokenizer:Advance(1)
+      end
+      local EndIndex = Tokenizer.Index - 1
+
+      local NumberString = State.File.Content:sub(StartIndex, EndIndex)
+      local Number = tonumber(NumberString)
+      if Number == nil then
+        Logger:Error("Failed to convert string to number: %s", NumberString)
+      end
+
+      Tokenizer:NewToken("Number", Number)
     else
       Logger:Error("Unexpected character: %s", Tokenizer.Character)
     end
@@ -190,6 +191,8 @@ function QCBE:Compile(_State, FileName, OutputFile, Type)
   FilePtr:close()
 
   Tokenizer:Tokenize()
+  Logger:PrintTable(State.Tokens)
+
   Parser:Parse()
 end
 
