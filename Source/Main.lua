@@ -1,4 +1,4 @@
-local QCBE = require("Source.QCBE.QCBE")
+local QCBE = require("Source.QCBE")
 
 local State = QCBE.new()
 
