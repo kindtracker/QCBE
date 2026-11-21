@@ -239,6 +239,27 @@ function Parser:Expect(Offset, Kind, Value)
   return State.Tokens[Parser.Index + Offset]
 end
 
+function Parser:ParseBody()
+  local Body = {}
+
+  while not Parser:CheckToken(0, "Keyword", "end") do
+    local PreviousIndex = Parser.Index
+    local Statement = Parser:ParseStatement()
+
+    if not Statement then
+      Logger:Error("Unexpected token: %s", tostring(Parser.Token.Value))
+    end
+
+    if Parser.Index == PreviousIndex then
+      Logger:Error("Parser made no progress")
+    end
+
+    table.insert(Body, Statement)
+  end
+
+  return Body
+end
+
 function Parser:ParseFunction()
   local Function = {
     Kind = "Function",
@@ -304,6 +325,9 @@ function Parser:ParseFunction()
 
   Parser:Expect(0, "Punct", ")")
   Parser:Advance(1)
+
+  local Body = Parser:ParseBody()
+  Function.Body = Body
 
   return Function
 end
