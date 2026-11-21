@@ -91,20 +91,43 @@ function Logger:PrintTable(Table, Indent, Seen)
 end
 
 function Tokenizer:Advance(Step)
+  if Step == 0 then
+    Tokenizer.Character = State.File.Content:sub(Tokenizer.Index, Tokenizer.Index)
+    return
+  end
+
   local Direction = Step > 0 and 1 or -1
 
   for _ = 1, math.abs(Step) do
+    if Direction > 0 then
+      if Tokenizer.Character == "\n" then
+        Tokenizer.Row = Tokenizer.Row + 1
+        Tokenizer.Column = 1
+      else
+        Tokenizer.Column = Tokenizer.Column + 1
+      end
+    else
+      local PreviousCharacter = State.File.Content:sub(Tokenizer.Index - 1, Tokenizer.Index - 1)
+
+      if PreviousCharacter == "\n" then
+        Tokenizer.Row = Tokenizer.Row - 1
+        Tokenizer.Column = 1
+      else
+        Tokenizer.Column = Tokenizer.Column - 1
+      end
+    end
+
     Tokenizer.Index = Tokenizer.Index + Direction
     Tokenizer.Character = State.File.Content:sub(Tokenizer.Index, Tokenizer.Index)
   end
-
-  Tokenizer.Character = State.File.Content:sub(Tokenizer.Index, Tokenizer.Index)
 end
 
 function Tokenizer:NewToken(Kind, Value)
   local Token = {
     Kind = Kind,
     Value = Value,
+    Column = Tokenizer.Column,
+    Row = Tokenizer.Row,
   }
   table.insert(State.Tokens, Token)
 end
@@ -122,7 +145,7 @@ function Tokenizer:Tokenize()
       Tokenizer:Advance(1)
     elseif StringHasLetter(BaseIdent, Tokenizer.Character) then
       local StartIndex = Tokenizer.Index
-      while StringHasLetter(BaseIdent, Tokenizer.Character) do
+      while StringHasLetter(BaseIdent .. BaseDigits, Tokenizer.Character) do
         Tokenizer:Advance(1)
       end
       local EndIndex = Tokenizer.Index - 1
@@ -134,7 +157,20 @@ function Tokenizer:Tokenize()
       Tokenizer:NewToken("Punct", Tokenizer.Character)
       Tokenizer:Advance(1)
     elseif StringHasLetter(BaseOperators, Tokenizer.Character) then
-      Tokenizer:NewToken("Operator", Tokenizer.Character)
+      if Tokenizer.Character == "-" then
+        Tokenizer:Advance(1)
+
+        if Tokenizer.Character == "-" then
+          while Tokenizer.Character ~= "\n" and Tokenizer.Character ~= "" do
+            Tokenizer:Advance(1)
+          end
+          goto continue
+        end
+
+        Tokenizer:NewToken("Operator", "-")
+      else
+        Tokenizer:NewToken("Operator", Tokenizer.Character)
+      end
       Tokenizer:Advance(1)
     elseif Tokenizer.Character == '"' or Tokenizer.Character == "'" then
       local Quote = Tokenizer.Character
@@ -167,6 +203,7 @@ function Tokenizer:Tokenize()
     else
       Logger:Error("Unexpected character: %s", Tokenizer.Character)
     end
+    ::continue::
   end
 end
 
