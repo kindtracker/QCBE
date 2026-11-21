@@ -5,10 +5,43 @@ local Tokenizer = {}
 local Parser = {}
 
 local BaseIdent = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
-local BasePunct = "(){}[];,:."
+local BasePunct = "(){};,."
 local BaseDigits = "0123456789"
-local BaseOperators = "=<>~&|+-*/^%#"
+local BaseOperators = "=<>~&|+-*/^%"
 local BaseWhiteSpace = "\n\t\r "
+
+local BaseKeywords = {
+	"and",
+	"break",
+	"continue",
+	"do",
+	"else",
+	"elseif",
+	"end",
+	"for",
+	"function",
+	"goto",
+	"if",
+	"in",
+	"local",
+	"not",
+	"or",
+	"repeat",
+	"return",
+	"then",
+	"until",
+	"while",
+}
+
+local BaseEscapes = {
+	["n"] = "\n",
+	["t"] = "\t",
+	["r"] = "\r",
+	["\\"] = "\\",
+	['"'] = '"',
+	["'"] = "'",
+	["0"] = "\0",
+}
 
 local function TableHasString(Table, Value)
 	for _, Item in pairs(Table) do
@@ -26,11 +59,47 @@ end
 
 function Logger:Error(...)
 	io.stdout:flush()
-	io.stderr:write("\27[1;37mCrosh:\27[0m ")
+	io.stderr:write("\27[1;37mQCBE:\27[0m ")
 	io.stderr:write("\27[1;31mError:\27[0m ")
 	io.stderr:write(string.format(...))
 	io.stderr:write("\n")
 	os.exit(1)
+end
+
+function Logger:PrintTable(Table, Indent, Seen)
+	Indent = Indent or 0
+	Seen = Seen or {}
+
+	if type(Table) ~= "table" then
+		print(string.rep("  ", Indent) .. tostring(Table))
+		return
+	end
+
+	if Seen[Table] then
+		print(string.rep("  ", Indent) .. "<circular reference>")
+		return
+	end
+
+	Seen[Table] = true
+
+	local Prefix = string.rep("  ", Indent)
+
+	print(Prefix .. "{")
+
+	for Key, Value in pairs(Table) do
+		io.write(Prefix .. "  [" .. string.format("%q", Key) .. "] = ")
+
+		if type(Value) == "table" then
+			print()
+			Logger:PrintTable(Value, Indent + 1, Seen)
+		else
+			print(string.format("%q", Value) .. ",")
+		end
+	end
+
+	print(Prefix .. "}")
+
+	Seen[Table] = nil
 end
 
 function Tokenizer:Advance(Step)
@@ -71,7 +140,31 @@ function Tokenizer:Tokenize()
 			local EndIndex = Tokenizer.Index - 1
 
 			local Ident = State.File.Content:sub(StartIndex, EndIndex)
-			Tokenizer:NewToken("Ident", Ident)
+			local Keyword = TableHasString(BaseKeywords, Ident)
+			Tokenizer:NewToken(Keyword and "Keyword" or "Ident", Ident)
+		elseif StringHasLetter(BasePunct, Tokenizer.Character) then
+			Tokenizer:NewToken("Punct", Tokenizer.Character)
+			Tokenizer:Advance(1)
+		elseif StringHasLetter(BaseOperators, Tokenizer.Character) then
+			Tokenizer:NewToken("Operator", Tokenizer.Character)
+			Tokenizer:Advance(1)
+		elseif Tokenizer.Character == '"' or Tokenizer.Character == "'" then
+			local Quote = Tokenizer.Character
+			Tokenizer:Advance(1)
+			local StartIndex = Tokenizer.Index
+
+			while Tokenizer.Character ~= Quote do
+				print(Tokenizer.Character)
+				Tokenizer:Advance(1)
+			end
+			local EndIndex = Tokenizer.Index
+			Tokenizer:Advance(1)
+
+			local String = State.File.Content:sub(StartIndex, EndIndex)
+			print(String)
+			Tokenizer:NewToken("String", String)
+		else
+			Logger:Error("Unexpected character: %s", Tokenizer.Character)
 		end
 	end
 end
