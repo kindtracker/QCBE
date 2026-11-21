@@ -479,6 +479,7 @@ end
 
 function BytecodeGenerator:Write8(Value)
   State.Bytecode = State.Bytecode .. string.char(Value % 256)
+  BytecodeGenerator.Pc = BytecodeGenerator.Pc + 1
 end
 
 function BytecodeGenerator:Write16(Value)
@@ -500,27 +501,60 @@ function BytecodeGenerator:WriteFloat(Value)
   local Data = FFI.new("float[1]", Value)
   local Bytes = FFI.string(Data, 4)
   State.Bytecode = State.Bytecode .. Bytes
+  BytecodeGenerator.Pc = BytecodeGenerator.Pc + 4
 end
 
 function BytecodeGenerator:WriteDouble(Value)
   local Data = FFI.new("double[1]", Value)
   local Bytes = FFI.string(Data, 8)
   State.Bytecode = State.Bytecode .. Bytes
+  BytecodeGenerator.Pc = BytecodeGenerator.Pc + 8
 end
 
 function BytecodeGenerator:WriteString(String)
   for Character in String:gmatch(".") do
     local Number = string.byte(Character)
-    BytecodeGenerator:Write8(Value)
+    BytecodeGenerator:Write8(Number)
   end
 end
 
+function BytecodeGenerator:EmitFunction(Ast)
+  local Export = false
+  for _, Attribute in ipairs(Ast.Attributes) do
+    if Attribute == "Export" then
+      Export = true
+    end
+  end
+
+  BytecodeGenerator.SymbolTable[Ast.Name] = {
+    Kind = "Function",
+    Name = Ast.Name,
+    Export = Export,
+  }
+
+  for _, ChildAst in ipairs(Ast.Body) do
+    BytecodeGenerator:Emit(ChildAst)
+  end
+end
+
+function BytecodeGenerator:EmitOperation(Ast)
+  local OpcodeTable = {}
+end
+
 function BytecodeGenerator:Emit(Ast)
-  BytecodeGenerator:WriteString("Meow")
+  print(Ast.Kind)
+  if Ast.Kind == "Function" then
+    BytecodeGenerator:EmitFunction(Ast)
+  elseif Ast.Kind == "Operation" then
+    BytecodeGenerator:EmitOperation(Ast)
+  elseif Ast.Kind == "Return" then
+    BytecodeGenerator:EmitReturn(Ast)
+  end
 end
 
 function BytecodeGenerator:EmitAst()
   State.Bytecode = ""
+  BytecodeGenerator.SymbolTable = {}
 
   for _, Ast in ipairs(State.Ast) do
     BytecodeGenerator:Emit(Ast)
@@ -556,6 +590,11 @@ function QCBE:Compile(_State, FileName, OutputFile, Type)
   end
 
   BytecodeGenerator:EmitAst()
+  if QCBE._DevMode then
+    local BytecodeFile = io.open(OutputFile:gsub("%..*$", "") .. ".qcbe", "wb")
+    BytecodeFile:write(State.Bytecode)
+    BytecodeFile:close()
+  end
 end
 
 return QCBE
