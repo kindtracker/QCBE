@@ -142,6 +142,13 @@ function Logger:Error(...)
   io.stderr:write("\27[1;31mError:\27[0m ")
   io.stderr:write(string.format(...))
   io.stderr:write("\n")
+
+  if QCBE.HiddenDevMode then
+    io.stderr:write("\27[38;2;100;200;255mLua:\27[0m traceback:\n")
+    io.stderr:write(debug.traceback():gsub("stack traceback:\n", ""):gsub("\t", "   "))
+    io.stderr:write("\n")
+  end
+
   os.exit(1)
 end
 
@@ -305,8 +312,10 @@ function Parser:Advance(Step)
   Parser.Index = Parser.Index + Step
   Parser.Token = State.Tokens[Parser.Index]
 
-  State.File.Column = Parser.Token.Column
-  State.File.Row = Parser.Token.Row
+  if Parser.Token then
+    State.File.Column = Parser.Token.Column
+    State.File.Row = Parser.Token.Row
+  end
 end
 
 function Parser:CheckToken(Offset, Kind, Value)
@@ -359,25 +368,34 @@ function Parser:ParseBody()
 end
 
 function Parser:ParseValue()
-  local Value = {}
-
   if Parser:CheckToken(0, "Number") then
-    Value = {
+    local Value = {
       Kind = "Number",
       Value = Parser.Token.Value,
     }
     Parser:Advance(1)
+    return Value
   elseif Parser:CheckToken(0, "String") then
-    Value = {
+    local Value = {
       Kind = "String",
       Value = Parser.Token.Value,
     }
     Parser:Advance(1)
-  else
-    Logger:Error("Expected number or string but got %q", Parser.Token.Value)
+    return Value
+  elseif Parser:CheckToken(0, "Ident") then
+    if TypeTable[Parser.Token.Value] then
+      return Parser:ParseType()
+    end
+
+    local Value = {
+      Kind = "Variable",
+      Value = Parser.Token.Value,
+    }
+    Parser:Advance(1)
+    return Value
   end
 
-  return Value
+  Logger:Error("Expected number, string or identifier but got %q", Parser.Token.Value)
 end
 
 function Parser:ParseType()
