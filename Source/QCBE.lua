@@ -17,7 +17,6 @@ local BaseKeywords = {
   "function",
   "return",
   "end",
-  "global",
   "local",
   "true",
   "false",
@@ -35,18 +34,18 @@ local BaseEscapes = {
 }
 
 local OpcodeTable = {
-  call = 0, -- Implemented
-  push = 1, -- Implemented
-  load = 2, -- Not implemented
-  store = 3, -- Not implemented
-  add = 4, -- Not implemented
-  sub = 5, -- Not implemented
-  mul = 6, -- Not implemented
-  div = 7, -- Not implemented
-  mod = 8, -- Not implemented
-  cmp = 10, -- Not implemented
-  jmp = 11, -- Not implemented
-  jmpn = 13, -- Not implemented
+  call = 0,
+  push = 1,
+  load = 2,
+  store = 3,
+  add = 4,
+  sub = 5,
+  mul = 6,
+  div = 7,
+  mod = 8,
+  cmp = 10,
+  jmp = 11,
+  jmpn = 13,
 }
 
 local TypeTable = {
@@ -62,6 +61,11 @@ local TypeTable = {
   u64 = 9,
   f32 = 10,
   f64 = 11,
+}
+
+local SymbolTypeTable = {
+  Function = 0,
+  Variable = 1,
 }
 
 --[[
@@ -348,6 +352,40 @@ function Parser:ParseBody()
   return Body
 end
 
+function Parser:ParseType()
+  local Type = {}
+
+  Parser:Expect(0, "Ident")
+  Type.Type = Parser.Token.Value
+  Parser:Advance(1)
+
+  Parser:Expect(0, "Punct", "(")
+  Parser:Advance(1)
+
+  if not Parser:CheckToken(0, "Punct", ")") then
+    if Parser:CheckToken(0, "Ident") then
+      Type.Value = Parser:ParseOperation()
+    elseif Parser:CheckToken(0, "Number") then
+      Type.Value = {
+        Kind = "Number",
+        Value = Parser.Token.Value,
+      }
+      Parser:Advance(1)
+    elseif Parser:CheckToken(0, "String") then
+      Type.Value = {
+        Kind = "String",
+        Value = Parser.Token.Value,
+      }
+      Parser:Advance(1)
+    end
+  end
+
+  Parser:Expect(0, "Punct", ")")
+  Parser:Advance(1)
+
+  return Type
+end
+
 function Parser:ParseFunction()
   local Function = {
     Kind = "Function",
@@ -492,41 +530,40 @@ end
 function Parser:ParseReturn()
   local Return = {
     Kind = "Return",
-    Type = "",
+    Type = {},
     Value = {},
   }
 
   Parser:Advance(1)
 
-  Parser:Expect(0, "Ident")
-  Return.Type = Parser.Token.Value
-  Parser:Advance(1)
-
-  Parser:Expect(0, "Punct", "(")
-  Parser:Advance(1)
-
-  if not Parser:CheckToken(0, "Punct", ")") then
-    if Parser:CheckToken(0, "Ident") then
-      Return.Value = Parser:ParseOperation()
-    elseif Parser:CheckToken(0, "Number") then
-      Return.Value = {
-        Kind = "Number",
-        Value = Parser.Token.Value,
-      }
-      Parser:Advance(1)
-    elseif Parser:CheckToken(0, "String") then
-      Return.Value = {
-        Kind = "String",
-        Value = Parser.Token.Value,
-      }
-      Parser:Advance(1)
-    end
-  end
-
-  Parser:Expect(0, "Punct", ")")
-  Parser:Advance(1)
-
+  local Type = Parser:ParseType()
+  Return.Type = Type.Type
+  Return.Value = Type.Value
   return Return
+end
+
+function Parser:ParseDeclaration()
+  local Declaration = {
+    Kind = "Declaration",
+    Name = "",
+    Type = {},
+    Value = "",
+  }
+
+  Parser:Advance(1)
+
+  Parser:Expect(0, "Ident")
+  Declaration.Name = Parser.Token.Value
+  Parser:Advance(1)
+
+  Parser:Expect(0, "Operator", "=")
+  Parser:Advance(1)
+
+  local Type = Parser:ParseType()
+  Declaration.Type = Type.Type
+  Declaration.Value = Type.Value
+
+  return Declaration
 end
 
 function Parser:ParseStatement()
@@ -534,6 +571,8 @@ function Parser:ParseStatement()
     return Parser:ParseFunction()
   elseif Parser:CheckToken(0, "Keyword", "return") then
     return Parser:ParseReturn()
+  elseif Parser:CheckToken(0, "Keyword", "local") then
+    return Parser:ParseDeclaration()
   elseif Parser:CheckToken(0, "Ident") then
     return Parser:ParseOperation()
   end
@@ -637,11 +676,12 @@ function BytecodeGenerator:WriteTypedValue(Type, Value)
 end
 
 function BytecodeGenerator:EmitFunction(Ast)
-  local Export = TableHasString(Ast.Attributes, "Export")
+  local Export = TableHasString(Ast.Attributes, "export")
 
   local Symbol = {
     Name = Ast.Name,
     NameIndex = BytecodeGenerator:AddConstant(Ast.Name),
+    Kind = "Function",
     Export = Export,
     Offset = BytecodeGenerator.Pc,
     Size = 0,
@@ -726,10 +766,11 @@ function BytecodeGenerator:BuildFile()
   for _, Symbol in ipairs(BytecodeGenerator.Symbols) do
     BytecodeGenerator:Write32(Symbol.NameIndex)
     BytecodeGenerator:Write8(Symbol.Export and 1 or 0)
+    BytecodeGenerator:Write8(SymbolTypeTable[Symbol.Kind])
     BytecodeGenerator:Write32(Symbol.Offset)
     BytecodeGenerator:Write32(Symbol.Size)
     BytecodeGenerator:Write16(#Symbol.Arguments)
-    BytecodeGenerator:Write8(TypeTable[Symbol.ReturnType])
+    BytecodeGenerator:Write8(TypeTable[Symbol.ReturnType or Symbol.Type])
 
     for _, Argument in ipairs(Symbol.Arguments) do
       BytecodeGenerator:Write8(TypeTable[Argument.Type])
