@@ -538,7 +538,35 @@ function BytecodeGenerator:EmitFunction(Ast)
 end
 
 function BytecodeGenerator:EmitOperation(Ast)
-  local OpcodeTable = {}
+  local OpcodeTable = {
+    call = 0,
+  }
+
+  local WriteTable = {
+    ptr = BytecodeGenerator.Write64,
+    i8 = BytecodeGenerator.Write8,
+    i16 = BytecodeGenerator.Write16,
+    i32 = BytecodeGenerator.Write32,
+    i64 = BytecodeGenerator.Write64,
+    u8 = BytecodeGenerator.Write8,
+    u16 = BytecodeGenerator.Write16,
+    u32 = BytecodeGenerator.Write32,
+    u64 = BytecodeGenerator.Write64,
+  }
+
+  local OpcodeNumber = OpcodeTable[Ast.Opcode]
+  BytecodeGenerator:Write8(OpcodeNumber)
+  BytecodeGenerator:WriteString(Ast.Target)
+
+  for _, Argument in ipairs(Ast.Arguments) do
+    local WriteFunction = WriteTable[Argument.Type]
+
+    if Argument.Type == "ptr" then
+      BytecodeGenerator:Write64(0) -- TODO: Add constant pools
+    else
+      WriteFunction(BytecodeGenerator, Argument.Value)
+    end
+  end
 end
 
 function BytecodeGenerator:Emit(Ast)
@@ -555,6 +583,7 @@ end
 function BytecodeGenerator:EmitAst()
   State.Bytecode = ""
   BytecodeGenerator.SymbolTable = {}
+  BytecodeGenerator.Pc = 0
 
   for _, Ast in ipairs(State.Ast) do
     BytecodeGenerator:Emit(Ast)
