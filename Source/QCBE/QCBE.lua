@@ -11,186 +11,186 @@ local BaseOperators = "=<>~&|+-*/^%"
 local BaseWhiteSpace = "\n\t\r "
 
 local BaseKeywords = {
-	"and",
-	"break",
-	"continue",
-	"do",
-	"else",
-	"elseif",
-	"end",
-	"for",
-	"function",
-	"goto",
-	"if",
-	"in",
-	"local",
-	"not",
-	"or",
-	"repeat",
-	"return",
-	"then",
-	"until",
-	"while",
+  "and",
+  "break",
+  "continue",
+  "do",
+  "else",
+  "elseif",
+  "end",
+  "for",
+  "function",
+  "goto",
+  "if",
+  "in",
+  "local",
+  "not",
+  "or",
+  "repeat",
+  "return",
+  "then",
+  "until",
+  "while",
 }
 
 local BaseEscapes = {
-	["n"] = "\n",
-	["t"] = "\t",
-	["r"] = "\r",
-	["\\"] = "\\",
-	['"'] = '"',
-	["'"] = "'",
-	["0"] = "\0",
+  ["n"] = "\n",
+  ["t"] = "\t",
+  ["r"] = "\r",
+  ["\\"] = "\\",
+  ['"'] = '"',
+  ["'"] = "'",
+  ["0"] = "\0",
 }
 
 local function TableHasString(Table, Value)
-	for _, Item in pairs(Table) do
-		if type(Item) == "string" and Item == Value then
-			return true
-		end
-	end
+  for _, Item in pairs(Table) do
+    if type(Item) == "string" and Item == Value then
+      return true
+    end
+  end
 
-	return false
+  return false
 end
 
 local function StringHasLetter(String, Letter)
-	return Letter ~= "" and string.find(String, Letter, 1, true) ~= nil
+  return Letter ~= "" and string.find(String, Letter, 1, true) ~= nil
 end
 
 function Logger:Error(...)
-	io.stdout:flush()
-	io.stderr:write("\27[1;37mQCBE:\27[0m ")
-	io.stderr:write("\27[1;31mError:\27[0m ")
-	io.stderr:write(string.format(...))
-	io.stderr:write("\n")
-	os.exit(1)
+  io.stdout:flush()
+  io.stderr:write("\27[1;37mQCBE:\27[0m ")
+  io.stderr:write("\27[1;31mError:\27[0m ")
+  io.stderr:write(string.format(...))
+  io.stderr:write("\n")
+  os.exit(1)
 end
 
 function Logger:PrintTable(Table, Indent, Seen)
-	Indent = Indent or 0
-	Seen = Seen or {}
+  Indent = Indent or 0
+  Seen = Seen or {}
 
-	if type(Table) ~= "table" then
-		print(string.rep("  ", Indent) .. tostring(Table))
-		return
-	end
+  if type(Table) ~= "table" then
+    print(string.rep("  ", Indent) .. tostring(Table))
+    return
+  end
 
-	if Seen[Table] then
-		print(string.rep("  ", Indent) .. "<circular reference>")
-		return
-	end
+  if Seen[Table] then
+    print(string.rep("  ", Indent) .. "<circular reference>")
+    return
+  end
 
-	Seen[Table] = true
+  Seen[Table] = true
 
-	local Prefix = string.rep("  ", Indent)
+  local Prefix = string.rep("  ", Indent)
 
-	print(Prefix .. "{")
+  print(Prefix .. "{")
 
-	for Key, Value in pairs(Table) do
-		io.write(Prefix .. "  [" .. string.format("%q", Key) .. "] = ")
+  for Key, Value in pairs(Table) do
+    io.write(Prefix .. "  [" .. string.format("%q", Key) .. "] = ")
 
-		if type(Value) == "table" then
-			print()
-			Logger:PrintTable(Value, Indent + 1, Seen)
-		else
-			print(string.format("%q", Value) .. ",")
-		end
-	end
+    if type(Value) == "table" then
+      print()
+      Logger:PrintTable(Value, Indent + 1, Seen)
+    else
+      print(string.format("%q", Value) .. ",")
+    end
+  end
 
-	print(Prefix .. "}")
+  print(Prefix .. "}")
 
-	Seen[Table] = nil
+  Seen[Table] = nil
 end
 
 function Tokenizer:Advance(Step)
-	local Direction = Step > 0 and 1 or -1
+  local Direction = Step > 0 and 1 or -1
 
-	for _ = 1, math.abs(Step) do
-		Tokenizer.Index = Tokenizer.Index + Direction
-		Tokenizer.Character = State.File.Content:sub(Tokenizer.Index, Tokenizer.Index)
-	end
+  for _ = 1, math.abs(Step) do
+    Tokenizer.Index = Tokenizer.Index + Direction
+    Tokenizer.Character = State.File.Content:sub(Tokenizer.Index, Tokenizer.Index)
+  end
 
-	Tokenizer.Character = State.File.Content:sub(Tokenizer.Index, Tokenizer.Index)
+  Tokenizer.Character = State.File.Content:sub(Tokenizer.Index, Tokenizer.Index)
 end
 
 function Tokenizer:NewToken(Kind, Value)
-	local Token = {
-		Kind = Kind,
-		Value = Value,
-	}
-	table.insert(State.Tokens, Token)
+  local Token = {
+    Kind = Kind,
+    Value = Value,
+  }
+  table.insert(State.Tokens, Token)
 end
 
 function Tokenizer:Tokenize()
-	State.Tokens = {}
-	Tokenizer.Column = 1
-	Tokenizer.Row = 1
-	Tokenizer.Index = 1
-	Tokenizer.Character = ""
+  State.Tokens = {}
+  Tokenizer.Column = 1
+  Tokenizer.Row = 1
+  Tokenizer.Index = 1
+  Tokenizer.Character = ""
 
-	Tokenizer:Advance(0)
-	while #Tokenizer.Character > 0 do
-		if StringHasLetter(BaseWhiteSpace, Tokenizer.Character) then
-			Tokenizer:Advance(1)
-		elseif StringHasLetter(BaseIdent, Tokenizer.Character) then
-			local StartIndex = Tokenizer.Index
-			while StringHasLetter(BaseIdent, Tokenizer.Character) do
-				Tokenizer:Advance(1)
-			end
-			local EndIndex = Tokenizer.Index - 1
+  Tokenizer:Advance(0)
+  while #Tokenizer.Character > 0 do
+    if StringHasLetter(BaseWhiteSpace, Tokenizer.Character) then
+      Tokenizer:Advance(1)
+    elseif StringHasLetter(BaseIdent, Tokenizer.Character) then
+      local StartIndex = Tokenizer.Index
+      while StringHasLetter(BaseIdent, Tokenizer.Character) do
+        Tokenizer:Advance(1)
+      end
+      local EndIndex = Tokenizer.Index - 1
 
-			local Ident = State.File.Content:sub(StartIndex, EndIndex)
-			local Keyword = TableHasString(BaseKeywords, Ident)
-			Tokenizer:NewToken(Keyword and "Keyword" or "Ident", Ident)
-		elseif StringHasLetter(BasePunct, Tokenizer.Character) then
-			Tokenizer:NewToken("Punct", Tokenizer.Character)
-			Tokenizer:Advance(1)
-		elseif StringHasLetter(BaseOperators, Tokenizer.Character) then
-			Tokenizer:NewToken("Operator", Tokenizer.Character)
-			Tokenizer:Advance(1)
-		elseif Tokenizer.Character == '"' or Tokenizer.Character == "'" then
-			local Quote = Tokenizer.Character
-			Tokenizer:Advance(1)
-			local StartIndex = Tokenizer.Index
+      local Ident = State.File.Content:sub(StartIndex, EndIndex)
+      local Keyword = TableHasString(BaseKeywords, Ident)
+      Tokenizer:NewToken(Keyword and "Keyword" or "Ident", Ident)
+    elseif StringHasLetter(BasePunct, Tokenizer.Character) then
+      Tokenizer:NewToken("Punct", Tokenizer.Character)
+      Tokenizer:Advance(1)
+    elseif StringHasLetter(BaseOperators, Tokenizer.Character) then
+      Tokenizer:NewToken("Operator", Tokenizer.Character)
+      Tokenizer:Advance(1)
+    elseif Tokenizer.Character == '"' or Tokenizer.Character == "'" then
+      local Quote = Tokenizer.Character
+      Tokenizer:Advance(1)
+      local StartIndex = Tokenizer.Index
 
-			while Tokenizer.Character ~= Quote do
-				print(Tokenizer.Character)
-				Tokenizer:Advance(1)
-			end
-			local EndIndex = Tokenizer.Index
-			Tokenizer:Advance(1)
+      while Tokenizer.Character ~= Quote do
+        print(Tokenizer.Character)
+        Tokenizer:Advance(1)
+      end
+      local EndIndex = Tokenizer.Index - 1
+      Tokenizer:Advance(1)
 
-			local String = State.File.Content:sub(StartIndex, EndIndex)
-			print(String)
-			Tokenizer:NewToken("String", String)
-		else
-			Logger:Error("Unexpected character: %s", Tokenizer.Character)
-		end
-	end
+      local String = State.File.Content:sub(StartIndex, EndIndex)
+      print(String)
+      Tokenizer:NewToken("String", String)
+    else
+      Logger:Error("Unexpected character: %s", Tokenizer.Character)
+    end
+  end
 end
 
 function Parser:Parse() end
 
 function QCBE.new()
-	return {
-		File = {
-			Content = 0,
-			Name = "",
-		},
-	}
+  return {
+    File = {
+      Content = 0,
+      Name = "",
+    },
+  }
 end
 
 function QCBE:Compile(_State, FileName, OutputFile, Type)
-	State = _State
+  State = _State
 
-	State.File.Name = FileName
+  State.File.Name = FileName
 
-	local FilePtr = io.open(FileName, "r")
-	State.File.Content = FilePtr:read("*a")
-	FilePtr:close()
+  local FilePtr = io.open(FileName, "r")
+  State.File.Content = FilePtr:read("*a")
+  FilePtr:close()
 
-	Tokenizer:Tokenize()
-	Parser:Parse()
+  Tokenizer:Tokenize()
+  Parser:Parse()
 end
 
 return QCBE
