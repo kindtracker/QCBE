@@ -207,7 +207,53 @@ function Tokenizer:Tokenize()
   end
 end
 
-function Parser:Parse() end
+function Parser:Advance(Step)
+  Parser.Index = Parser.Index + Step
+  Parser.Token = State.Tokens[Parser.Index]
+end
+
+function Parser:CheckToken(Offset, Kind, Value)
+  if Offset ~= 0 then
+    Parser:Advance(Offset)
+  end
+
+  if Value then
+    if Parser.Token.Kind == Kind and Parser.Token.Value == Value then
+      return true
+    end
+  else
+    if Parser.Token.Kind == Kind then
+      return true
+    end
+  end
+
+  return false
+end
+
+-- implement Parser:Expect(Offset, Kind, Value)
+
+function Parser:ParseFunction()
+  Parser:Advance(1)
+end
+
+function Parser:ParseStatement()
+  if Parser:CheckToken(0, "Keyword", "function") then
+    return Parser:ParseFunction()
+  end
+end
+
+function Parser:Parse()
+  State.Ast = {}
+  Parser.Token = {}
+  Parser.Index = 1
+
+  Parser:Advance(0)
+  Logger:PrintTable(Parser.Token)
+  while Parser.Token do
+    local Statement = Parser:ParseStatement()
+    table.insert(State.Ast, Statement)
+  end
+end
 
 function QCBE.new()
   return {
@@ -228,9 +274,14 @@ function QCBE:Compile(_State, FileName, OutputFile, Type)
   FilePtr:close()
 
   Tokenizer:Tokenize()
-  Logger:PrintTable(State.Tokens)
+  if QCBE._DevMode then
+    Logger:PrintTable(State.Tokens)
+  end
 
   Parser:Parse()
+  if QCBE._DevMode then
+    Logger:PrintTable(State.Ast)
+  end
 end
 
 return QCBE
