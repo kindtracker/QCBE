@@ -5,7 +5,7 @@ local Tokenizer = {}
 local Parser = {}
 
 local BaseIdent = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
-local BasePunct = "(){};,."
+local BasePunct = "(){}:,."
 local BaseDigits = "0123456789"
 local BaseOperators = "=<>~&|+-*/^%"
 local BaseWhiteSpace = "\n\t\r "
@@ -213,27 +213,75 @@ function Parser:Advance(Step)
 end
 
 function Parser:CheckToken(Offset, Kind, Value)
-  if Offset ~= 0 then
-    Parser:Advance(Offset)
+  local Token = State.Tokens[Parser.Index + Offset]
+
+  if not Token or Token.Kind ~= Kind then
+    return false
   end
 
-  if Value then
-    if Parser.Token.Kind == Kind and Parser.Token.Value == Value then
-      return true
-    end
-  else
-    if Parser.Token.Kind == Kind then
-      return true
-    end
+  if Value ~= nil and Token.Value ~= Value then
+    return false
   end
 
-  return false
+  return true
 end
 
--- implement Parser:Expect(Offset, Kind, Value)
+function Parser:Expect(Offset, Kind, Value)
+  if not Parser:CheckToken(Offset, Kind, Value) then
+    local Token = State.Tokens[Parser.Index + Offset]
+    if not Token then
+      Logger:Error("Unexpected end of file")
+    end
+
+    Logger:Error("Unexpected token %q", Token.Value)
+  end
+
+  return State.Tokens[Parser.Index + Offset]
+end
 
 function Parser:ParseFunction()
+  local Function = {
+    Kind = "Function",
+    Name = "",
+    Attributes = {},
+    Arguments = {},
+    ReturnType = "",
+    Body = {},
+  }
+
   Parser:Advance(1)
+
+  Parser:Expect(0, "Ident")
+  Function.Name = Parser.Token.Value
+  Parser:Advance(1)
+
+  local ArgMode = false
+  local ArgumentTypes = {}
+
+  while Parser:CheckToken(0, "Punct", ".") do
+    Parser:Advance(1)
+    Parser:Expect(0, "Ident")
+
+    local Attribute = Parser.Token.Value
+    if Attribute == "arg" then
+      ArgMode = not ArgMode
+    elseif ArgMode then
+      table.insert(ArgumentTypes, Attribute)
+    else
+      table.insert(Function.Attributes, Attribute)
+    end
+
+    Parser:Advance(1)
+  end
+
+  Parser:Expect(0, "Punct", ":")
+  Parser:Advance(1)
+
+  Parser:Expect(0, "Ident")
+  Function.ReturnType = Parser.Token.Value
+  Parser:Advance(1)
+
+  return Function
 end
 
 function Parser:ParseStatement()
@@ -248,9 +296,18 @@ function Parser:Parse()
   Parser.Index = 1
 
   Parser:Advance(0)
-  Logger:PrintTable(Parser.Token)
   while Parser.Token do
+    local PreviousIndex = Parser.Index
     local Statement = Parser:ParseStatement()
+
+    if not Statement then
+      Logger:Error("Unexpected token: %s", tostring(Parser.Token.Value))
+    end
+
+    if Parser.Index == PreviousIndex then
+      Logger:Error("Parser made no progress")
+    end
+
     table.insert(State.Ast, Statement)
   end
 end
