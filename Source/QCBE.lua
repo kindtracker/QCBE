@@ -34,18 +34,22 @@ local BaseEscapes = {
 }
 
 local OpcodeTable = {
-  call = 0,
-  push = 1,
-  load = 2,
-  store = 3,
-  add = 4,
-  sub = 5,
-  mul = 6,
-  div = 7,
-  mod = 8,
-  cmp = 10,
-  jmp = 11,
-  jmpn = 13,
+  add = 0,
+  sub = 1,
+  mul = 2,
+  div = 3,
+  mod = 4,
+  cmpeq = 5,
+  cmpne = 6,
+  cmplt = 7,
+  cmple = 8,
+  cmpgt = 9,
+  cmpge = 10,
+  call = 11,
+  jmp = 12,
+  push = 13,
+  load = 14,
+  store = 15,
 }
 
 local TypeTable = {

@@ -1,6 +1,9 @@
-local meow = ptr("meow")
-
-function main.export.arg.i32.ptr:i32(argc, argv)
-  call.puts(ptr(meow))
-  return i32(0)
+---@entry
+---@export
+---@param Argc int
+---@param Argv ptr
+---@return int
+function main(Argc, Argv)
+  Call.puts("meow")
+  return 0
 end
