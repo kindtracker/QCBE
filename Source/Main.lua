@@ -5,7 +5,7 @@ local State = QCBE.new()
 local FileName = nil
 for ArgumentIndex, Argument in ipairs(arg) do
   if Argument == "-sHiddenDevMode" then
-    QCBE._DevMode = true
+    QCBE.HiddenDevMode = true
   else
     FileName = Argument
   end
