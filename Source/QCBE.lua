@@ -138,7 +138,7 @@ end
 
 function Logger:Error(...)
   io.stdout:flush()
-  io.stderr:write("\27[1;37mQCBE:\27[0m ")
+  io.stderr:write(string.format("\27[1;37mQCBE: %s:%d:%d \27[0m", State.File.Name, State.File.Column, State.File.Row))
   io.stderr:write("\27[1;31mError:\27[0m ")
   io.stderr:write(string.format(...))
   io.stderr:write("\n")
@@ -207,6 +207,9 @@ function Tokenizer:Advance(Step)
         Tokenizer.Column = Tokenizer.Column - 1
       end
     end
+
+    State.File.Column = Tokenizer.Column
+    State.File.Row = Tokenizer.Row
 
     Tokenizer.Index = Tokenizer.Index + Direction
     Tokenizer.Character = State.File.Content:sub(Tokenizer.Index, Tokenizer.Index)
@@ -301,6 +304,9 @@ end
 function Parser:Advance(Step)
   Parser.Index = Parser.Index + Step
   Parser.Token = State.Tokens[Parser.Index]
+
+  State.File.Column = Parser.Token.Column
+  State.File.Row = Parser.Token.Row
 end
 
 function Parser:CheckToken(Offset, Kind, Value)
@@ -324,7 +330,7 @@ function Parser:Expect(Offset, Kind, Value)
       Logger:Error("Unexpected end of file")
     end
 
-    Logger:Error("Unexpected token %q", Token.Value)
+    Logger:Error("Expected %q but got %q", Value, Token.Value)
   end
 
   return State.Tokens[Parser.Index + Offset]
@@ -339,7 +345,7 @@ function Parser:ParseBody()
     local Statement = Parser:ParseStatement()
 
     if not Statement then
-      Logger:Error("Unexpected token: %q", StatementName)
+      Logger:Error("Expected statement but got: %q", StatementName)
     end
 
     if Parser.Index == PreviousIndex then
@@ -350,6 +356,28 @@ function Parser:ParseBody()
   end
 
   return Body
+end
+
+function Parser:ParseValue()
+  local Value = {}
+
+  if Parser:CheckToken(0, "Number") then
+    Value = {
+      Kind = "Number",
+      Value = Parser.Token.Value,
+    }
+    Parser:Advance(1)
+  elseif Parser:CheckToken(0, "String") then
+    Value = {
+      Kind = "String",
+      Value = Parser.Token.Value,
+    }
+    Parser:Advance(1)
+  else
+    Logger:Error("Expected number or string but got %q", Parser.Token.Value)
+  end
+
+  return Value
 end
 
 function Parser:ParseType()
@@ -363,21 +391,8 @@ function Parser:ParseType()
   Parser:Advance(1)
 
   if not Parser:CheckToken(0, "Punct", ")") then
-    if Parser:CheckToken(0, "Ident") then
-      Type.Value = Parser:ParseOperation()
-    elseif Parser:CheckToken(0, "Number") then
-      Type.Value = {
-        Kind = "Number",
-        Value = Parser.Token.Value,
-      }
-      Parser:Advance(1)
-    elseif Parser:CheckToken(0, "String") then
-      Type.Value = {
-        Kind = "String",
-        Value = Parser.Token.Value,
-      }
-      Parser:Advance(1)
-    end
+    local Value = Parser:ParseValue()
+    Type.Value = Value
   end
 
   Parser:Expect(0, "Punct", ")")
@@ -445,7 +460,7 @@ function Parser:ParseFunction()
     if Parser:CheckToken(0, "Punct", ",") then
       Parser:Advance(1)
     elseif not Parser:CheckToken(0, "Punct", ")") then
-      Logger:Error("Expected ',' or ')'")
+      Logger:Error('Expected "," or ")" but got %q', Parser.Token.Value)
     end
   end
 
@@ -487,32 +502,13 @@ function Parser:ParseOperation()
   Parser:Advance(1)
 
   while not Parser:CheckToken(0, "Punct", ")") do
-    local Argument
-
-    if Parser:CheckToken(0, "Ident") then
-      Argument = Parser:ParseOperation()
-    elseif Parser:CheckToken(0, "String") then
-      Argument = {
-        Kind = "String",
-        Value = Parser.Token.Value,
-      }
-      Parser:Advance(1)
-    elseif Parser:CheckToken(0, "Number") then
-      Argument = {
-        Kind = "Number",
-        Value = Parser.Token.Value,
-      }
-      Parser:Advance(1)
-    else
-      Logger:Error("Unexpected token in operation argument: %s", tostring(Parser.Token.Value))
-    end
-
+    local Argument = Parser:ParseValue()
     table.insert(Operation.Arguments, Argument)
 
     if Parser:CheckToken(0, "Punct", ",") then
       Parser:Advance(1)
     elseif not Parser:CheckToken(0, "Punct", ")") then
-      Logger:Error("Expected ',' or ')'")
+      Logger:Error('Expected "," or ")" but got %q', Parser.Token.Value)
     end
   end
 
@@ -589,7 +585,7 @@ function Parser:Parse()
     local Statement = Parser:ParseStatement()
 
     if not Statement then
-      Logger:Error("Unexpected token: %s", tostring(Parser.Token.Value))
+      Logger:Error("Expected statement but got %q", tostring(Parser.Token.Value))
     end
 
     if Parser.Index == PreviousIndex then
@@ -789,6 +785,8 @@ function QCBE.new()
     File = {
       Content = 0,
       Name = "",
+      Column = 1,
+      Row = 1,
     },
   }
 end
