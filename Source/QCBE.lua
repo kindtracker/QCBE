@@ -64,6 +64,60 @@ local TypeTable = {
   f64 = 11,
 }
 
+--[[
+  Bytecode:
+  Call: Partially Implemented
+  Push: Partially Implemented
+  Load: Not Implemented
+  Store: Not Implemented
+  Add: Not Implemented
+  Subtract: Not Implemented
+  Multiply: Not Implemented
+  Divide: Not Implemented
+  Modulo: Not Implemented
+  Compare: Not Implemented
+  Jump: Not Implemented
+  Conditional Jump: Not Implemented
+  Bitwise Operations: Not Implemented
+  Logical Operations: Not Implemented
+  Type Conversion: Not Implemented
+
+  Parser:
+  Parse Declaration: Partially Implemented
+  Parse Return: Partially Implemented
+  Parse Number Literal: Implemented
+  Parse String Literal: Partially Implemented
+  Parse Type: Partially Implemented
+  Parse Expression: Not Implemented
+  Parse Variable Declaration: Not Implemented
+  Parse Variable Assignment: Not Implemented
+  Parse Function Call: Partially Implemented
+  Parse Function Arguments: Partially Implemented
+  Parse Pointer: Not Implemented
+  Parse Array: Not Implemented
+  Parse Struct: Not Implemented
+
+  Compiler:
+  Generate Function: Partially Implemented
+  Generate Function Arguments: Partially Implemented
+  Generate Function Return: Partially Implemented
+  Generate Function Calls: Partially Implemented
+  Generate Typed Values: Partially Implemented
+  Generate Variables: Not Implemented
+  Generate Memory Access: Not Implemented
+  Generate Constants: Implemented
+  Generate Symbols: Partially Implemented
+  Resolve Labels: Not Implemented
+
+  QCBE File:
+  Generate Header: Partially Implemented
+  Generate Constant Section: Partially Implemented
+  Generate Symbol Section: Partially Implemented
+  Generate Code Section: Implemented
+  Validate File Structure: Not Implemented
+  Validate Bytecode: Not Implemented
+]]
+
 local function TableHasString(Table, Value)
   for _, Item in pairs(Table) do
     if type(Item) == "string" and Item == Value then
