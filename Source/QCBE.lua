@@ -1,8 +1,11 @@
+local FFI = require("ffi")
+
 local QCBE = {}
 local State = nil
 local Logger = {}
 local Tokenizer = {}
 local Parser = {}
+local BytecodeGenerator = {}
 
 local BaseIdent = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_"
 local BasePunct = "(){}:,."
@@ -474,6 +477,56 @@ function Parser:Parse()
   end
 end
 
+function BytecodeGenerator:Write8(Value)
+  State.Bytecode = State.Bytecode .. string.char(Value % 256)
+end
+
+function BytecodeGenerator:Write16(Value)
+  self:Write8(Value % 256)
+  self:Write8(math.floor(Value / 256))
+end
+
+function BytecodeGenerator:Write32(Value)
+  self:Write16(Value % 65536)
+  self:Write16(math.floor(Value / 65536))
+end
+
+function BytecodeGenerator:Write64(Value)
+  self:Write32(Value % 4294967296)
+  self:Write32(math.floor(Value / 4294967296))
+end
+
+function BytecodeGenerator:WriteFloat(Value)
+  local Data = FFI.new("float[1]", Value)
+  local Bytes = FFI.string(Data, 4)
+  State.Bytecode = State.Bytecode .. Bytes
+end
+
+function BytecodeGenerator:WriteDouble(Value)
+  local Data = FFI.new("double[1]", Value)
+  local Bytes = FFI.string(Data, 8)
+  State.Bytecode = State.Bytecode .. Bytes
+end
+
+function BytecodeGenerator:WriteString(String)
+  for Character in String:gmatch(".") do
+    local Number = string.byte(Character)
+    BytecodeGenerator:Write8(Value)
+  end
+end
+
+function BytecodeGenerator:Emit(Ast)
+  BytecodeGenerator:WriteString("Meow")
+end
+
+function BytecodeGenerator:EmitAst()
+  State.Bytecode = ""
+
+  for _, Ast in ipairs(State.Ast) do
+    BytecodeGenerator:Emit(Ast)
+  end
+end
+
 function QCBE.new()
   return {
     File = {
@@ -501,6 +554,8 @@ function QCBE:Compile(_State, FileName, OutputFile, Type)
   if QCBE._DevMode then
     Logger:PrintTable(State.Ast)
   end
+
+  BytecodeGenerator:EmitAst()
 end
 
 return QCBE
