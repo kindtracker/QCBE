@@ -244,10 +244,11 @@ function Parser:ParseBody()
 
   while not Parser:CheckToken(0, "Keyword", "end") do
     local PreviousIndex = Parser.Index
+    local StatementName = Parser.Token.Value
     local Statement = Parser:ParseStatement()
 
     if not Statement then
-      Logger:Error("Unexpected token: %s", tostring(Parser.Token.Value))
+      Logger:Error("Unexpected token: %q", StatementName)
     end
 
     if Parser.Index == PreviousIndex then
@@ -328,6 +329,7 @@ function Parser:ParseFunction()
 
   local Body = Parser:ParseBody()
   Function.Body = Body
+  Parser:Advance(1)
 
   return Function
 end
@@ -349,8 +351,10 @@ function Parser:ParseOperation()
     Operation.Target = Parser.Token.Value
     Parser:Advance(1)
   else
-    Operation.Target = Parser.Token.Value
-    Operation.Opcode = "Call"
+    Operation.Opcode = nil
+    Operation.Target = nil
+    Operation.Type = Parser.Token.Value
+    Operation.Kind = "Type"
     Parser:Advance(1)
   end
 
@@ -387,15 +391,62 @@ function Parser:ParseOperation()
     end
   end
 
+  if Operation.Type then
+    Operation.Value = Operation.Arguments[1]
+    Operation.Arguments = nil
+  end
+
   Parser:Expect(0, "Punct", ")")
   Parser:Advance(1)
 
   return Operation
 end
 
+function Parser:ParseReturn()
+  local Return = {
+    Kind = "Return",
+    Type = "",
+    Value = {},
+  }
+
+  Parser:Advance(1)
+
+  Parser:Expect(0, "Ident")
+  Return.Type = Parser.Token.Value
+  Parser:Advance(1)
+
+  Parser:Expect(0, "Punct", "(")
+  Parser:Advance(1)
+
+  if not Parser:CheckToken(0, "Punct", ")") then
+    if Parser:CheckToken(0, "Ident") then
+      Return.Value = Parser:ParseOperation()
+    elseif Parser:CheckToken(0, "Number") then
+      Return.Value = {
+        Kind = "Number",
+        Value = Parser.Token.Value,
+      }
+      Parser:Advance(1)
+    elseif Parser:CheckToken(0, "String") then
+      Return.Value = {
+        Kind = "String",
+        Value = Parser.Token.Value,
+      }
+      Parser:Advance(1)
+    end
+  end
+
+  Parser:Expect(0, "Punct", ")")
+  Parser:Advance(1)
+
+  return Return
+end
+
 function Parser:ParseStatement()
   if Parser:CheckToken(0, "Keyword", "function") then
     return Parser:ParseFunction()
+  elseif Parser:CheckToken(0, "Keyword", "return") then
+    return Parser:ParseReturn()
   elseif Parser:CheckToken(0, "Ident") then
     return Parser:ParseOperation()
   end
