@@ -281,6 +281,30 @@ function Parser:ParseFunction()
   Function.ReturnType = Parser.Token.Value
   Parser:Advance(1)
 
+  Parser:Expect(0, "Punct", "(")
+  Parser:Advance(1)
+
+  local Idx = 1
+  while not Parser:CheckToken(0, "Punct", ")") do
+    Parser:Expect(0, "Ident")
+
+    local ArgumentType = ArgumentTypes[Idx]
+    local ArgumentName = Parser.Token.Value
+    Function.Arguments[Idx] = { Name = ArgumentName, Type = ArgumentType }
+
+    Parser:Advance(1)
+    Idx = Idx + 1
+
+    if Parser:CheckToken(0, "Punct", ",") then
+      Parser:Advance(1)
+    elseif not Parser:CheckToken(0, "Punct", ")") then
+      Logger:Error("Expected ',' or ')'")
+    end
+  end
+
+  Parser:Expect(0, "Punct", ")")
+  Parser:Advance(1)
+
   return Function
 end
 
